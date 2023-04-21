@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+option optimize_for = SPEED;
+
+option go_package = "./msys";
+
+message SystemMsg {
+  oneof content {
+    SyncNodeStateRequest syncNodeStateRequest = 1;
+
+    BroadcastRequest broadcastRequest = 3;
+    BroadcastResponse broadcastResponse = 4;
+    ListenBroadcastBloom listenBroadcastBloom = 5;
+    AddBroadcastListen addBroadcastListen = 6;
+  }
+}
+
+message NodeState {
+  string id = 1;
+  uint32 state = 2;
+}
+
+// no need to response
+message SyncNodeStateRequest {
+  repeated NodeState states = 1;
+}
+
+message BroadcastChannel {
+  enum Type {
+    NULL = 0;
+    USER = 1;
+    GROUP = 2;
+  }
+
+  Type type = 1;
+  string channel = 2;
+}
+
+message BroadcastRequest {
+  string requestId = 1;
+  string source = 2;
+  repeated string target = 3;
+  BroadcastChannel channel = 4;
+  bytes message = 5;
+}
+
+message BroadcastResponse {
+  string requestId = 1;
+  bool success = 2;
+}
+
+/**
+ * 用于向四周广播本节点监听的广播 channel 的布隆过滤器
+ */
+message ListenBroadcastBloom {
+  string node = 1;
+  uint32 version = 2;
+  bytes bloom = 3;
+}
+
+message AddBroadcastListen {
+  string node = 1;
+  uint32 version = 2;
+  repeated BroadcastChannel channel = 3;
+}
+
+message SyncBroadcastRequest {
+  message Snapshot {
+    string node = 1;
+    uint32 version = 2;
+    uint32 hash = 3;
+  }
+
+  repeated Snapshot snapshots = 1;
+}
