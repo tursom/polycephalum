@@ -74,5 +74,5 @@ func (c *broadcast[M]) Send(channel *msys.BroadcastChannel, msg M, cm util.Conte
 	go c.local.Send(channel, msg, cm)
 
 	nodes := c.store.nodes(channel)
-	go c.processor.SendToRemote(nodes, channel, msg)
+	go c.processor.SendToRemote(nodes, channel, c.processor.Encode(msg))
 }

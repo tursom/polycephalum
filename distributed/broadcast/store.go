@@ -12,7 +12,7 @@ import (
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util/bloom"
 
-	"github.com/tursom/tursom-im/proto/msys"
+	"github.com/tursom/polycephalum/proto/msys"
 )
 
 type (
