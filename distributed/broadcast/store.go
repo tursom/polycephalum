@@ -12,7 +12,7 @@ import (
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util/bloom"
 
-	"github.com/tursom/polycephalum/proto/msys"
+	"github.com/tursom/polycephalum/proto/m"
 )
 
 type (
@@ -94,7 +94,7 @@ func (s *store) updateFilter(id string, filter *bloom.Bloom) exceptions.Exceptio
 	return nil
 }
 
-func (s *store) remoteListen(id string, channel *msys.BroadcastChannel) exceptions.Exception {
+func (s *store) remoteListen(id string, channel *m.BroadcastChannel) exceptions.Exception {
 	n, ok := s.cache.Get(id)
 	if !ok {
 		var exception exceptions.Exception
@@ -113,7 +113,7 @@ func (s *store) remoteListen(id string, channel *msys.BroadcastChannel) exceptio
 	return nil
 }
 
-func (s *store) nodes(channel *msys.BroadcastChannel) []string {
+func (s *store) nodes(channel *m.BroadcastChannel) []string {
 	nodes := make([]string, 16)
 
 	for id := range s.nodeSet {

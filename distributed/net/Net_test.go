@@ -1,47 +1,25 @@
 package net
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/tursom/GoCollections/lang"
 )
-
-type (
-	testProcessor struct {
-		lang.BaseObject
-	}
-)
-
-func (t *testProcessor) Send(
-	ctx context.Context,
-	target []string,
-	nextJmp string,
-	msg []byte,
-	jmp uint32,
-) (unreachable []string) {
-	return nil
-}
-
-func (t *testProcessor) Suspect(id string) {
-}
 
 func Test_node_stateChanged(t *testing.T) {
 	n := &node{
 		lock: &nodeLock{},
 	}
 
-	n.stateChanged(1, "", 100)
+	n.stateChanged(1, "", 100, nil)
 
 	n.waitSuspect()
 
-	n.suspect(&testProcessor{})
+	n.suspect(func(id string) {})
 
 	go func() {
 		time.Sleep(time.Second)
-		n.stateChanged(3, "", 100)
+		n.stateChanged(3, "", 100, nil)
 	}()
 
 	n.waitSuspect()
@@ -55,13 +33,13 @@ func Test_node_stateChanged_offline(t *testing.T) {
 		lock: &nodeLock{},
 	}
 
-	n.stateChanged(1, "", 100)
+	n.stateChanged(1, "", 100, nil)
 
-	n.suspect(&testProcessor{})
+	n.suspect(func(id string) {})
 
 	go func() {
 		time.Sleep(time.Second)
-		n.stateChanged(4, "", 100)
+		n.stateChanged(4, "", 100, nil)
 	}()
 
 	n.waitSuspect()

@@ -10,7 +10,7 @@ import (
 	"github.com/tursom/GoCollections/util/bloom"
 
 	"github.com/tursom/polycephalum/distributed"
-	"github.com/tursom/polycephalum/proto/msys"
+	"github.com/tursom/polycephalum/proto/m"
 )
 
 type (
@@ -60,18 +60,18 @@ func (c *broadcast[M]) UpdateFilter(id string, filter *bloom.Bloom) exceptions.E
 	return c.store.updateFilter(id, filter)
 }
 
-func (c *broadcast[M]) RemoteListen(id string, channel *msys.BroadcastChannel) exceptions.Exception {
+func (c *broadcast[M]) RemoteListen(id string, channel *m.BroadcastChannel) exceptions.Exception {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	return c.store.remoteListen(id, channel)
 }
 
-func (c *broadcast[M]) Send(channel *msys.BroadcastChannel, msg M, cm util.ContextMap) {
+func (c *broadcast[M]) Send(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	go c.local.Send(channel, msg, cm)
+	go c.local.Receive(channel, msg, ctx)
 
 	nodes := c.store.nodes(channel)
 	go c.processor.SendToRemote(nodes, channel, c.processor.Encode(msg))

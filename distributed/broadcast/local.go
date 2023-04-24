@@ -8,14 +8,14 @@ import (
 	"github.com/tursom/GoCollections/util/bloom"
 
 	"github.com/tursom/polycephalum/distributed"
-	"github.com/tursom/polycephalum/proto/msys"
+	"github.com/tursom/polycephalum/proto/m"
 )
 
 type (
 	local[M any] struct {
 		lang.BaseObject
 		processor       distributed.BroadcastProcessor[M]
-		channelGroupMap map[*msys.BroadcastChannel]struct{}
+		channelGroupMap map[*m.BroadcastChannel]struct{}
 		mutex           concurrent.RWLock
 		filter          *bloom.Bloom
 	}
@@ -26,17 +26,17 @@ func (c *local[M]) Filter() *bloom.Bloom {
 	panic("implement me")
 }
 
-func (c *local[M]) Listen(channel *msys.BroadcastChannel) exceptions.Exception {
+func (c *local[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *local[M]) CancelListen(channel *msys.BroadcastChannel) exceptions.Exception {
+func (c *local[M]) CancelListen(channel *m.BroadcastChannel) exceptions.Exception {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *local[M]) Send(channel *msys.BroadcastChannel, msg M, cm util.ContextMap) {
+func (c *local[M]) Receive(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -44,9 +44,9 @@ func (c *local[M]) Send(channel *msys.BroadcastChannel, msg M, cm util.ContextMa
 		return
 	}
 
-	c.processor.SendToLocal(channel, msg, cm)
+	c.processor.SendToLocal(channel, msg, ctx)
 }
 
-func (c *local[M]) isListen(channel *msys.BroadcastChannel) {
+func (c *local[M]) isListen(channel *m.BroadcastChannel) {
 
 }

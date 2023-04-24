@@ -1,23 +1,40 @@
 syntax = "proto3";
 
+package cn.tursom.polycephalum;
+
 option optimize_for = SPEED;
 
-option go_package = "./msys";
+option go_package = "./m";
 
-message SystemMsg {
+message Msg {
+  uint32 jump = 1;
+
   oneof content {
-    SyncNodeStateRequest syncNodeStateRequest = 1;
+    Handshake Handshake = 10000;
+    HandshakeResponse handshakeResponse = 10001;
 
-    BroadcastRequest broadcastRequest = 3;
-    BroadcastResponse broadcastResponse = 4;
-    ListenBroadcastBloom listenBroadcastBloom = 5;
-    AddBroadcastListen addBroadcastListen = 6;
+    SyncNodeStateRequest syncNodeStateRequest = 2;
+
+    BroadcastMsg broadcastMsg = 3;
+    ListenBroadcastBloom listenBroadcastBloom = 4;
+    AddBroadcastListen addBroadcastListen = 5;
+    SyncBroadcastMsg syncBroadcastMsg = 6;
   }
+}
+
+message Handshake {
+  bytes seed = 1;
+}
+
+message HandshakeResponse {
+  string id = 1 ;
+  bytes sign = 2 ;
 }
 
 message NodeState {
   string id = 1;
   uint32 state = 2;
+  uint32 jump = 3;
 }
 
 // no need to response
@@ -26,27 +43,16 @@ message SyncNodeStateRequest {
 }
 
 message BroadcastChannel {
-  enum Type {
-    NULL = 0;
-    USER = 1;
-    GROUP = 2;
-  }
-
-  Type type = 1;
+  uint32 type = 1;
   string channel = 2;
 }
 
-message BroadcastRequest {
+message BroadcastMsg {
   string requestId = 1;
   string source = 2;
   repeated string target = 3;
   BroadcastChannel channel = 4;
   bytes message = 5;
-}
-
-message BroadcastResponse {
-  string requestId = 1;
-  bool success = 2;
 }
 
 /**
@@ -64,7 +70,7 @@ message AddBroadcastListen {
   repeated BroadcastChannel channel = 3;
 }
 
-message SyncBroadcastRequest {
+message SyncBroadcastMsg {
   message Snapshot {
     string node = 1;
     uint32 version = 2;

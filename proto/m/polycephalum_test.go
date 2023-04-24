@@ -1,4 +1,4 @@
-package msys
+package m
 
 import (
 	"bytes"

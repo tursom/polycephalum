@@ -14,13 +14,15 @@ import (
 	"github.com/tursom/GoCollections/util/mr"
 
 	"github.com/tursom/polycephalum/distributed"
+	"github.com/tursom/polycephalum/proto/m"
 )
 
 type (
-	netImpl[M any] struct {
+	netImpl struct {
 		lang.BaseObject
 
-		processor distributed.NetProcessor[M]
+		localId   string
+		processor distributed.NetProcessor
 
 		lock sync.RWMutex
 
@@ -53,7 +55,7 @@ type (
 	}
 )
 
-func New[M any](kvs kv.Store[string, []byte]) distributed.Net[M] {
+func New(localId string, processor distributed.NetProcessor, kvs kv.Store[string, []byte]) distributed.Net {
 	locks := make(map[string]*nodeLock)
 
 	store := kv.VCodecStore(kvs, nodeCodec(locks))
@@ -65,14 +67,20 @@ func New[M any](kvs kv.Store[string, []byte]) distributed.Net[M] {
 		panic(exceptions.Package(err))
 	}
 
-	return &netImpl[M]{
-		cache: cache,
-		store: store,
-		locks: locks,
+	return &netImpl{
+		localId:   localId,
+		processor: processor,
+		cache:     cache,
+		store:     store,
+		locks:     locks,
 	}
 }
 
-func (n *netImpl[M]) Send(ctx context.Context, ids []string, msg []byte, jmp uint32) exceptions.Exception {
+func (n *netImpl) LocalId() string {
+	return n.localId
+}
+
+func (n *netImpl) Send(ctx context.Context, ids []string, msg *m.Msg) exceptions.Exception {
 	targetMap := make(map[string][]string)
 	mayOffline := make(map[string]struct{})
 
@@ -81,7 +89,7 @@ func (n *netImpl[M]) Send(ctx context.Context, ids []string, msg []byte, jmp uin
 	}
 
 	if len(targetMap) != 0 {
-		n.doSend(ctx, targetMap, msg, jmp, mayOffline)
+		n.doSend(ctx, targetMap, msg, mayOffline)
 	}
 
 	if len(mayOffline) == 0 {
@@ -91,14 +99,14 @@ func (n *netImpl[M]) Send(ctx context.Context, ids []string, msg []byte, jmp uin
 	for id := range mayOffline {
 		id := id
 		go func() {
-			n.retrySend(ctx, id, msg, jmp, 1)
+			n.retrySend(ctx, id, msg, 1)
 		}()
 	}
 
 	return nil
 }
 
-func (n *netImpl[M]) mapTargets(
+func (n *netImpl) mapTargets(
 	ids []string,
 	mayOffline map[string]struct{},
 	targetMap map[string][]string,
@@ -126,11 +134,10 @@ func (n *netImpl[M]) mapTargets(
 	return nil
 }
 
-func (n *netImpl[M]) doSend(
+func (n *netImpl) doSend(
 	ctx context.Context,
 	targetMap map[string][]string,
-	msg []byte,
-	jmp uint32,
+	msg *m.Msg,
 	mayOffline map[string]struct{},
 ) {
 	ch := make(chan *sendOp)
@@ -142,20 +149,22 @@ func (n *netImpl[M]) doSend(
 		close(ch)
 	}()
 
-	for unreachable := range mr.MultiMap(ch, func(value *sendOp) []string {
-		return n.processor.Send(ctx, value.target, value.nextJmp, msg, jmp+1)
+	for unreachable := range mr.MultiMap(ch, func(value *sendOp) lang.ReceiveChannel[string] {
+		return n.processor.Send(ctx, value.target, value.nextJmp, msg)
 	}) {
-		for _, id := range unreachable {
-			n.suspect(id, mayOffline)
-		}
+		unreachable := unreachable
+		go func() {
+			for id := range unreachable.RCh() {
+				n.suspect(id, mayOffline)
+			}
+		}()
 	}
 }
 
-func (n *netImpl[M]) retrySend(
+func (n *netImpl) retrySend(
 	ctx context.Context,
 	id string,
-	msg []byte,
-	jmp uint32,
+	msg *m.Msg,
 	retryTimes uint32,
 ) {
 	if retryTimes > 3 {
@@ -173,26 +182,38 @@ func (n *netImpl[M]) retrySend(
 		return
 	}
 
-	if unreachable := n.processor.Send(ctx, []string{id}, node.nextJmp, msg, jmp+1); len(unreachable) == 0 {
+	unreachable := n.processor.Send(ctx, []string{id}, node.nextJmp, msg)
+	if unreachable == nil {
 		return
 	}
 
-	node.suspect(n.processor.Suspect)
+	select {
+	case _, ok := <-unreachable.RCh():
+		if !ok {
+			// channel closed
+			return
+		}
+	case <-time.After(time.Minute):
+		// after timeout, the default handler is to ignore
+		return
+	}
 
-	n.retrySend(ctx, id, msg, jmp, retryTimes+1)
+	node.suspect(n.processor.ChangeNodeState)
+
+	n.retrySend(ctx, id, msg, retryTimes+1)
 }
 
-func (n *netImpl[M]) suspect(id string, mayOffline map[string]struct{}) {
+func (n *netImpl) suspect(id string, mayOffline map[string]struct{}) {
 	node := n.tryGetNode(id)
 	if node == nil {
 		return
 	}
 
 	mayOffline[id] = struct{}{}
-	node.suspect(n.processor.Suspect)
+	node.suspect(n.processor.ChangeNodeState)
 }
 
-func (n *netImpl[M]) UpdateNodeState(from, id string, state, jmp uint32) {
+func (n *netImpl) UpdateNodeState(from, id string, state, jmp uint32) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
@@ -220,10 +241,14 @@ func (n *netImpl[M]) UpdateNodeState(from, id string, state, jmp uint32) {
 		}
 	}
 
-	target.stateChanged(state, from, jmp)
+	target.stateChanged(state, from, jmp, n.nearTrySend)
 }
 
-func (n *netImpl[M]) tryGetNode(id string) *node {
+func (n *netImpl) nearTrySend(target string, msg *m.Msg) {
+	_ = n.processor.Send(nil, []string{target}, target, msg)
+}
+
+func (n *netImpl) tryGetNode(id string) *node {
 	node, e := n.getNode(id)
 	if e != nil {
 		log.WithFields(log.Fields{
@@ -237,7 +262,7 @@ func (n *netImpl[M]) tryGetNode(id string) *node {
 	return node
 }
 
-func (n *netImpl[M]) getNode(id string) (*node, exceptions.Exception) {
+func (n *netImpl) getNode(id string) (*node, exceptions.Exception) {
 	value, ok := n.cache.Get(id)
 	if ok {
 		return value, nil
@@ -260,11 +285,14 @@ func (n *node) String() string {
 		n.state, n.suspectTime.Format("060102-150405.000"), n.nextJmp, n.distance)
 }
 
-func (n *node) stateChanged(state uint32, nextJmp string, distance uint32) {
+func (n *node) stateChanged(state uint32, nextJmp string, distance uint32, nearSender func(target string, msg *m.Msg)) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
 	if state <= n.state {
+		if state < n.state {
+			n.sync(nextJmp, state, distance, nearSender)
+		}
 		return
 	}
 
@@ -277,13 +305,39 @@ func (n *node) stateChanged(state uint32, nextJmp string, distance uint32) {
 		if n.lock.waitChannel != nil {
 			close(n.lock.waitChannel)
 		}
-	} else if !isOnline(state0) {
+
+		return
+	}
+
+	if isOnline(state0) {
 		n.suspectTime = time.Now()
 		n.lock.waitChannel = make(chan struct{})
 	}
 }
 
-func (n *node) suspect(suspect func(id string)) {
+func (n *node) sync(
+	target string,
+	state uint32,
+	distance uint32,
+	nearSender func(target string, msg *m.Msg),
+) {
+	var msg m.Msg
+	msg.Content = &m.Msg_SyncNodeStateRequest{
+		SyncNodeStateRequest: &m.SyncNodeStateRequest{
+			States: []*m.NodeState{
+				{
+					Id:    n.id,
+					State: state,
+					Jump:  distance,
+				},
+			},
+		},
+	}
+
+	nearSender(target, &msg)
+}
+
+func (n *node) suspect(suspect func(id string, state uint32)) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
@@ -295,7 +349,7 @@ func (n *node) suspect(suspect func(id string)) {
 	n.suspectTime = time.Now()
 	n.lock.waitChannel = make(chan struct{})
 
-	go suspect(n.id)
+	go suspect(n.id, n.state)
 }
 
 func (n *node) waitSuspect() {
