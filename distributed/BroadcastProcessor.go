@@ -9,20 +9,20 @@ import (
 
 type broadcastProcessorImpl[M any] struct {
 	lang.BaseObject
-	MessageProcessor[M]
+	Codec[M]
 	net      Net
 	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap)
 }
 
 func NetBroadcastProcessor[M any](
 	net Net,
-	message MessageProcessor[M],
+	message Codec[M],
 	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap),
 ) BroadcastProcessor[M] {
 	return &broadcastProcessorImpl[M]{
-		MessageProcessor: message,
-		net:              net,
-		receiver:         receiver,
+		Codec:    message,
+		net:      net,
+		receiver: receiver,
 	}
 }
 
@@ -39,4 +39,8 @@ func (b *broadcastProcessorImpl[M]) SendToRemote(id []string, channel *m.Broadca
 			broadcastMsg.Message = msg
 		})
 	}))
+}
+
+func (b *broadcastProcessorImpl[M]) SendToNear(msg *m.Msg) {
+	b.net.NearSend(msg)
 }

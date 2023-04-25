@@ -80,6 +80,31 @@ func (n *netImpl) LocalId() string {
 	return n.localId
 }
 
+func (n *netImpl) Snap() []*distributed.Node {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+
+	var nodes []*distributed.Node
+
+	for id := range n.locks {
+		node, e := n.getNode(id)
+		if e != nil {
+			// TODO log
+			continue
+		} else if node == nil {
+			continue
+		}
+
+		nodes = append(nodes, node.trans())
+	}
+
+	return nodes
+}
+
+func (n *netImpl) NearSend(msg *m.Msg) {
+	n.processor.NearSend(msg)
+}
+
 func (n *netImpl) Send(ctx context.Context, ids []string, msg *m.Msg) exceptions.Exception {
 	targetMap := make(map[string][]string)
 	mayOffline := make(map[string]struct{})
@@ -241,11 +266,7 @@ func (n *netImpl) UpdateNodeState(from, id string, state, jmp uint32) {
 		}
 	}
 
-	target.stateChanged(state, from, jmp, n.nearTrySend)
-}
-
-func (n *netImpl) nearTrySend(target string, msg *m.Msg) {
-	_ = n.processor.Send(nil, []string{target}, target, msg)
+	target.stateChanged(state, from, jmp, n.processor.NearSend)
 }
 
 func (n *netImpl) tryGetNode(id string) *node {
@@ -285,13 +306,13 @@ func (n *node) String() string {
 		n.state, n.suspectTime.Format("060102-150405.000"), n.nextJmp, n.distance)
 }
 
-func (n *node) stateChanged(state uint32, nextJmp string, distance uint32, nearSender func(target string, msg *m.Msg)) {
+func (n *node) stateChanged(state uint32, nextJmp string, distance uint32, nearSender func(msg *m.Msg)) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
 	if state <= n.state {
 		if state < n.state {
-			n.sync(nextJmp, state, distance, nearSender)
+			n.sync(state, distance, nearSender)
 		}
 		return
 	}
@@ -315,26 +336,19 @@ func (n *node) stateChanged(state uint32, nextJmp string, distance uint32, nearS
 	}
 }
 
-func (n *node) sync(
-	target string,
-	state uint32,
-	distance uint32,
-	nearSender func(target string, msg *m.Msg),
-) {
+func (n *node) sync(state uint32, distance uint32, nearSender func(msg *m.Msg)) {
 	var msg m.Msg
 	msg.Content = &m.Msg_SyncNodeStateRequest{
 		SyncNodeStateRequest: &m.SyncNodeStateRequest{
-			States: []*m.NodeState{
-				{
-					Id:    n.id,
-					State: state,
-					Jump:  distance,
-				},
-			},
+			States: []*m.NodeState{{
+				Id:    n.id,
+				State: state,
+				Jump:  distance,
+			}},
 		},
 	}
 
-	nearSender(target, &msg)
+	nearSender(&msg)
 }
 
 func (n *node) suspect(suspect func(id string, state uint32)) {
@@ -394,4 +408,16 @@ func (n *node) isOnlineLF() bool {
 
 func isOnline(state uint32) bool {
 	return state&1 == 1
+}
+
+func (n *node) trans() *distributed.Node {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+
+	return &distributed.Node{
+		Id:       n.id,
+		NextJump: n.nextJmp,
+		State:    n.state,
+		Jmp:      n.distance,
+	}
 }

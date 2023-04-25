@@ -3,6 +3,7 @@ package broadcast
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/binary"
 	"io"
 
 	"gitea.tursom.cn/tursom/kvs/kv"
@@ -12,6 +13,7 @@ import (
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util/bloom"
 
+	"github.com/tursom/polycephalum/distributed"
 	"github.com/tursom/polycephalum/proto/m"
 )
 
@@ -21,9 +23,9 @@ type (
 	}
 
 	store struct {
-		cache   *lru.Cache[string, *node]
-		store   kv.Store[string, *node]
-		nodeSet map[string]struct{}
+		cache       *lru.Cache[string, *node]
+		store       kv.Store[string, *node]
+		onlineNodes map[string]struct{}
 	}
 )
 
@@ -39,22 +41,23 @@ func newStore(size int, persistence kv.Store[string, []byte]) *store {
 	})
 
 	return &store{
-		cache:   c,
-		store:   codecStore,
-		nodeSet: make(map[string]struct{}),
+		cache:       c,
+		store:       codecStore,
+		onlineNodes: make(map[string]struct{}),
 	}
 }
 
 func (s *store) load(id string) (*node, exceptions.Exception) {
-	if _, ok := s.nodeSet[id]; !ok {
+	if _, ok := s.onlineNodes[id]; !ok {
 		return nil, nil
 	}
 
 	return s.store.Get(id)
 }
 
-func (s *store) addNode(id string) exceptions.Exception {
+func (s *store) nodeOnline(id string) exceptions.Exception {
 	if s.cache.Contains(id) {
+		s.onlineNodes[id] = struct{}{}
 		return nil
 	}
 
@@ -64,59 +67,80 @@ func (s *store) addNode(id string) exceptions.Exception {
 	}
 
 	s.cache.Add(id, n)
-	s.nodeSet[id] = struct{}{}
+	s.onlineNodes[id] = struct{}{}
 
 	return nil
 }
 
-func (s *store) suspectNode(id string) {
-	if _, ok := s.nodeSet[id]; !ok {
-		return
-	}
-
-	delete(s.nodeSet, id)
+func (s *store) nodeOffline(id string) {
+	delete(s.onlineNodes, id)
 }
 
-func (s *store) updateFilter(id string, filter *bloom.Bloom) exceptions.Exception {
+func (s *store) updateFilter(id string, filter *bloom.Bloom, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
+	s.onlineNodes[id] = struct{}{}
+
 	n, ok := s.cache.Get(id)
 	if !ok {
 		var exception exceptions.Exception
 		n, exception = s.store.Get(id)
 		if exception != nil {
-			return exception
+			return distributed.UpdateResult_Failed, exception
 		}
 
 		s.cache.Add(id, n)
 	}
 
-	n.filter = filter
-
-	return nil
+	if n.filterVersion > filterVersion {
+		return distributed.UpdateResult_Newer, nil
+	} else if n.filterVersion > filterVersion {
+		n.filter = filter
+		return distributed.UpdateResult_Older, nil
+	} else if n.filter.Equals(filter) {
+		return distributed.UpdateResult_Unchanged, nil
+	} else {
+		n.filter.Merge(filter)
+		return distributed.UpdateResult_Updated, nil
+	}
 }
 
-func (s *store) remoteListen(id string, channel *m.BroadcastChannel) exceptions.Exception {
+func (s *store) remoteListen(id string, channel []*m.BroadcastChannel, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
 	n, ok := s.cache.Get(id)
 	if !ok {
 		var exception exceptions.Exception
 		n, exception = s.store.Get(id)
 		if exception != nil {
-			return exception
+			return distributed.UpdateResult_Failed, exception
 		}
+	}
+
+	if n.filterVersion > filterVersion {
+		return distributed.UpdateResult_Newer, nil
+	} else if n.filterVersion < filterVersion {
+		return distributed.UpdateResult_Older, nil
 	}
 
 	if n.filter == nil {
 		n.filter = bloom.NewBloom(10_000, 0.1)
 	}
 
-	n.filter.Add(channel.Marshal())
+	result := distributed.UpdateResult_Unchanged
 
-	return nil
+	for _, c := range channel {
+		bs := c.Marshal()
+		if result == distributed.UpdateResult_Unchanged && !n.filter.Contains(bs) {
+			result = distributed.UpdateResult_Updated
+		}
+
+		n.filter.Add(bs)
+	}
+
+	return result, nil
 }
 
 func (s *store) nodes(channel *m.BroadcastChannel) []string {
 	nodes := make([]string, 16)
 
-	for id := range s.nodeSet {
+	for id := range s.onlineNodes {
 		n, ok := s.cache.Get(id)
 		if !ok {
 			fromStore, exception := s.store.Get(id)
@@ -145,6 +169,7 @@ func (c *codec) Encode(v2 *node) []byte {
 	buffer := bytes.NewBuffer(nil)
 	writer := gzip.NewWriter(buffer)
 
+	_ = binary.Write(writer, binary.BigEndian, v2.filterVersion)
 	v2.filter.Marshal(writer)
 	if err := writer.Close(); err != nil {
 		panic(exceptions.Package(err))
@@ -160,12 +185,18 @@ func (c *codec) Decode(v1 []byte) *node {
 
 	reader, err := gzip.NewReader(bytes.NewReader(v1))
 
+	var filterVersion uint32
+	if err := binary.Read(reader, binary.BigEndian, &filterVersion); err != nil {
+		panic(exceptions.Package(err))
+	}
+
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		panic(exceptions.Package(err))
 	}
 
 	return &node{
-		filter: bloom.Unmarshal(data),
+		filter:        bloom.Unmarshal(data),
+		filterVersion: filterVersion,
 	}
 }

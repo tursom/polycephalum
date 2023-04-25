@@ -1,6 +1,9 @@
 package broadcast
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"sync"
 	"time"
 
@@ -15,8 +18,9 @@ import (
 
 type (
 	node struct {
-		filter      *bloom.Bloom
-		suspectTime *time.Time
+		filterVersion uint32
+		filter        *bloom.Bloom
+		suspectTime   *time.Time
 	}
 
 	broadcast[M any] struct {
@@ -27,44 +31,58 @@ type (
 )
 
 func New[M any](
+	localId string,
+	version uint32,
 	processor distributed.BroadcastProcessor[M],
 	persistence kv.Store[string, []byte],
 ) distributed.Broadcast[M] {
 	return &broadcast[M]{
 		store: newStore(1024, persistence),
 		local: local[M]{
+			localId:   localId,
+			version:   version,
 			processor: processor,
 		},
 	}
 }
 
-func (c *broadcast[M]) AddNode(id string) exceptions.Exception {
+func (c *broadcast[M]) NodeOnline(id string) exceptions.Exception {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return c.store.addNode(id)
+	return c.store.nodeOnline(id)
 }
 
-func (c *broadcast[M]) SuspectNode(id string) exceptions.Exception {
+func (c *broadcast[M]) NodeOffline(id string) exceptions.Exception {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.store.suspectNode(id)
+	c.store.nodeOffline(id)
 	return nil
 }
 
-func (c *broadcast[M]) UpdateFilter(id string, filter *bloom.Bloom) exceptions.Exception {
+func (c *broadcast[M]) UpdateFilter(nid string, filter []byte, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return c.store.updateFilter(id, filter)
+	reader, err := gzip.NewReader(bytes.NewReader(filter))
+	if err != nil {
+		return distributed.UpdateResult_Failed, exceptions.Package(err)
+	}
+
+	bs, err := io.ReadAll(reader)
+	if err != nil {
+		return distributed.UpdateResult_Failed, exceptions.Package(err)
+	}
+
+	return c.store.updateFilter(nid, bloom.Unmarshal(bs), filterVersion)
 }
 
-func (c *broadcast[M]) RemoteListen(id string, channel *m.BroadcastChannel) exceptions.Exception {
+func (c *broadcast[M]) RemoteListen(nid string, channel []*m.BroadcastChannel, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return c.store.remoteListen(id, channel)
+	return c.store.remoteListen(nid, channel, filterVersion)
 }
 
 func (c *broadcast[M]) Send(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
@@ -75,4 +93,60 @@ func (c *broadcast[M]) Send(channel *m.BroadcastChannel, msg M, ctx util.Context
 
 	nodes := c.store.nodes(channel)
 	go c.processor.SendToRemote(nodes, channel, c.processor.Encode(msg))
+}
+
+func (c *broadcast[M]) NodeFilter(nid string) ([]byte, uint32) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	node, e := c.store.load(nid)
+	if e != nil {
+		return nil, 0
+	} else if node == nil {
+		return nil, 0
+	}
+
+	return marshalFilter(node.filter), node.filterVersion
+}
+
+func marshalFilter(filter *bloom.Bloom) []byte {
+	buffer := bytes.NewBuffer(nil)
+	writer := gzip.NewWriter(buffer)
+	filter.Marshal(writer)
+
+	return buffer.Bytes()
+}
+
+func (c *broadcast[M]) NodeHash(nid string) (version uint32, hash uint32) {
+	if nid == c.localId {
+		c.local.lock.RLock()
+		defer c.local.lock.RUnlock()
+
+		return c.version, uint32(c.filter.HashCode())
+	}
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	node, e := c.store.load(nid)
+	if e != nil {
+		return 0, 0
+	} else if node == nil {
+		return 0, 0
+	}
+
+	return node.filterVersion, uint32(node.filter.HashCode())
+}
+
+func (c *broadcast[M]) Snap() []string {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	res := []string{c.localId}
+
+	for id := range c.store.onlineNodes {
+		res = append(res, id)
+	}
+
+	return res
 }

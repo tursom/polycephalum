@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math/rand"
+	"sync"
 	"time"
 
 	"gitea.tursom.cn/tursom/kvs/kv"
@@ -35,11 +36,14 @@ type (
 	}
 
 	impl[M any] struct {
-		id string
+		lock  sync.Mutex
+		id    string
+		state uint32
+		kvs   kv.Store[string, []byte]
 
 		netProcessor *netProcessor
 
-		message   distributed.MessageProcessor[M]
+		message   distributed.Codec[M]
 		net       distributed.Net
 		broadcast distributed.Broadcast[M]
 
@@ -54,22 +58,51 @@ type (
 
 func New[M any](
 	id string,
-	messageProcessor distributed.MessageProcessor[M],
+	messageProcessor distributed.Codec[M],
 	kvs kv.Store[string, []byte],
+	privateKey []byte,
 	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap),
 ) Polycephalum[M] {
+	store := kv.KCodecStore(kvs, kv.PrefixCodec("polycephalum-"))
+
 	var netProcessor netProcessor
 
 	netInstance := net.New(id, &netProcessor, kv.KCodecStore(kvs, kv.PrefixCodec("net-")))
 	bp := distributed.NetBroadcastProcessor(netInstance, messageProcessor, receiver)
 
-	return &impl[M]{
+	b := broadcast.New[M](
+		id,
+		exceptions.Exec1r1(kv.VCodecStore(store, kv.Uint32ToByteCodec).Get, "broadcastVersion")+1,
+		bp,
+		kv.KCodecStore(kvs, kv.PrefixCodec("broadcast-")),
+	)
+	netProcessor.nss = b
+
+	p := &impl[M]{
 		id:           id,
+		kvs:          store,
 		netProcessor: &netProcessor,
 		message:      messageProcessor,
 		net:          netInstance,
-		broadcast:    broadcast.New[M](bp, kv.KCodecStore(kvs, kv.PrefixCodec("broadcast-"))),
+		broadcast:    b,
+		privateKey:   privateKey,
 	}
+
+	p.state = p.u32KvsGet("state") | 1
+
+	return p
+}
+
+func (p *impl[M]) u32Kvs() kv.Store[string, uint32] {
+	return kv.VCodecStore(p.kvs, kv.Uint32ToByteCodec)
+}
+
+func (p *impl[M]) u32KvsGet(key string) uint32 {
+	return exceptions.Exec1r1(p.u32Kvs().Get, key)
+}
+
+func (p *impl[M]) u32KvsPut(key string, value uint32) exceptions.Exception {
+	return p.u32Kvs().Put(key, value)
 }
 
 func (p *impl[M]) Broadcast(channelType uint32, channel string, msg M, ctx util.ContextMap) {
@@ -148,7 +181,7 @@ func (p *impl[M]) doRead(reader io.Reader, closer func(), ctx util.ContextMap) {
 	for {
 		n, err := reader.Read(buffer)
 		if err != nil {
-			// TODO
+			// TODO log
 			return
 		} else if n == 0 {
 			continue
@@ -248,34 +281,22 @@ func size(in [][]byte) int32 {
 // closer 将 reader 和 writer 的关闭方法抽象统一
 // 返回值 closer 是可重入的，可以任意次调用
 func (p *impl[M]) closer(ctx util.ContextMap, reader io.Reader, writer io.Writer) (closer func()) {
-	closeSignal := make(lang.RawChannel[struct{}], 1)
-
-	go func() {
-		<-closeSignal
-
-		if closer, ok := reader.(io.Closer); ok {
-			if err := closer.Close(); err != nil {
-				// TODO
-			}
-		}
-
-		if closer, ok := writer.(io.Closer); ok {
-			if err := closer.Close(); err != nil {
-				// TODO
-			}
-		}
-
-		// TODO remove broadcast listen
-		nodeId := NodeIdKey.Get(ctx)
-		if len(nodeId) == 0 {
-			return
-		}
-
-		_ = p.broadcast.SuspectNode(nodeId)
-	}()
+	var once sync.Once
 
 	return func() {
-		closeSignal.TrySend(struct{}{})
+		once.Do(func() {
+			if closer, ok := reader.(io.Closer); ok {
+				if err := closer.Close(); err != nil {
+					// TODO log
+				}
+			}
+
+			if closer, ok := writer.(io.Closer); ok {
+				if err := closer.Close(); err != nil {
+					// TODO log
+				}
+			}
+		})
 	}
 }
 
@@ -304,12 +325,12 @@ func (p *impl[M]) handleMessage(ctx util.ContextMap, msgBytes []byte) {
 	case *m.Msg_BroadcastMsg:
 		p.handleBroadcastRequest(ctx, &msg)
 	case *m.Msg_ListenBroadcastBloom:
-		// TODO
+		p.handleListenBroadcastBloom(ctx, &msg)
 	case *m.Msg_AddBroadcastListen:
-		// TODO
+		p.handleAddBroadcastListen(ctx, &msg)
 	case *m.Msg_SyncBroadcastMsg:
-		// TODO
+		p.handleSyncBroadcastMsg(ctx, &msg)
 	default:
-		// TODO
+		// TODO log
 	}
 }

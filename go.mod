@@ -8,7 +8,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/sirupsen/logrus v1.9.0
-	github.com/tursom/GoCollections v0.3.1
+	github.com/tursom/GoCollections v0.3.6
 	google.golang.org/protobuf v1.30.0
 )
 

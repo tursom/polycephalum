@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"strconv"
+	"unsafe"
 )
 
 func Build(builder func(msg *Msg)) *Msg {
@@ -24,6 +25,11 @@ func GroupChannel(channel int32) *BroadcastChannel {
 		Type:    uint32(2),
 		Channel: strconv.Itoa(int(channel)),
 	}
+}
+
+func (c *BroadcastChannel) MarshalString() string {
+	marshal := c.Marshal()
+	return *(*string)(unsafe.Pointer(&marshal))
 }
 
 func (c *BroadcastChannel) Marshal() []byte {
