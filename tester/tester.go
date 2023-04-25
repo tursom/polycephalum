@@ -1,10 +1,7 @@
 package tester
 
 import (
-	"fmt"
 	"io"
-	"math/rand"
-	"time"
 
 	"gitea.tursom.cn/tursom/kvs/kv"
 	"github.com/tursom/GoCollections/lang"
@@ -21,9 +18,9 @@ type (
 	}
 )
 
-func newTestPolycephalum(receiver func(channelType uint32, channel string, msg string, ctx util.ContextMap)) polycephalum.Polycephalum[string] {
+func newTestPolycephalum(id string, receiver func(channelType uint32, channel string, msg string, ctx util.ContextMap)) polycephalum.Polycephalum[string] {
 	return polycephalum.New[string](
-		fmt.Sprintf("%d-%d", time.Now().Unix(), rand.Int31()),
+		id,
 		kv.StringToByteCodec,
 		kv.MapKvs(),
 		publicKey,

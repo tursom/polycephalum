@@ -175,7 +175,7 @@ func (n *netImpl) doSend(
 	}()
 
 	for unreachable := range mr.MultiMap(ch, func(value *sendOp) lang.ReceiveChannel[string] {
-		return n.processor.Send(ctx, value.target, value.nextJmp, msg)
+		return n.processor.Send(value.target, value.nextJmp, msg)
 	}) {
 		if unreachable == nil {
 			continue
@@ -210,7 +210,7 @@ func (n *netImpl) retrySend(
 		return
 	}
 
-	unreachable := n.processor.Send(ctx, []string{id}, node.nextJmp, msg)
+	unreachable := n.processor.Send([]string{id}, node.nextJmp, msg)
 	if unreachable == nil {
 		return
 	}
@@ -271,7 +271,7 @@ func (n *netImpl) UpdateNodeState(from, id string, state, jmp uint32) {
 		n.cache.Add(id, target)
 	}
 
-	target.stateChanged(state, from, jmp, n.processor.NearSend)
+	target.stateChanged(state, from, jmp, n.processor)
 }
 
 func (n *netImpl) tryGetNode(id string) *node {
@@ -311,16 +311,22 @@ func (n *node) String() string {
 		n.state, n.suspectTime.Format("060102-150405.000"), n.nextJmp, n.distance)
 }
 
-func (n *node) stateChanged(state uint32, nextJmp string, distance uint32, nearSender func(msg *m.Msg)) {
+func (n *node) stateChanged(state uint32, nextJmp string, distance uint32, p distributed.NetProcessor) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
-	if state <= n.state {
-		if state < n.state {
-			n.sync(state, distance, nearSender)
-		}
+	if state < n.state {
+		n.sync(state, distance, func(msg *m.Msg) {
+			p.Send([]string{nextJmp}, nextJmp, msg)
+		})
 		return
 	}
+
+	if state == n.state && len(n.nextJmp) != 0 && n.distance <= distance {
+		return
+	}
+
+	defer n.sync(state, distance, p.NearSend)
 
 	state0 := n.state
 	n.state = state

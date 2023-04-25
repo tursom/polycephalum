@@ -27,6 +27,10 @@ func NetBroadcastProcessor[M any](
 }
 
 func (b *broadcastProcessorImpl[M]) SendToLocal(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
+	if b.receiver == nil {
+		return
+	}
+
 	b.receiver(channel.Type, channel.Channel, msg, ctx)
 }
 

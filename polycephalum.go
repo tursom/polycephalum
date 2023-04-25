@@ -100,6 +100,14 @@ func New[M any](
 	return p
 }
 
+func (p *impl[M]) String() string {
+	return p.id
+}
+
+func (p *impl[M]) Net() distributed.Net {
+	return p.net
+}
+
 func (p *impl[M]) u32Kvs() kv.Store[string, uint32] {
 	return kv.VCodecStore(p.kvs, kv.Uint32ToByteCodec)
 }
