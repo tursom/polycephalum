@@ -23,20 +23,23 @@ func Test_Polycephalum(t *testing.T) {
 	wg.Add(16)
 
 	ps := []polycephalum.Polycephalum[string]{
-		newTestPolycephalum(msgLogger(&wg)),
+		newTestPolycephalum(nil),
+		newTestPolycephalum(nil),
 		newTestPolycephalum(msgLogger(&wg)),
 	}
 
 	connect(ps[0], ps[1])
+	connect(ps[1], ps[2])
 	time.Sleep(time.Second)
 
 	channel := UserChannel("test1")
-	_ = ps[1].Listen(channel)
+	_ = ps[2].Listen(channel)
 	time.Sleep(time.Second)
 	for i := 0; i < 16; i++ {
 		ps[0].Broadcast(channel.Type, channel.Channel, fmt.Sprintf("hello %d times", i), nil)
 	}
 	wg.Wait()
+	//time.Sleep(time.Minute * 5)
 }
 
 func Test_testIO(t1 *testing.T) {

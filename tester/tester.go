@@ -23,7 +23,7 @@ type (
 
 func newTestPolycephalum(receiver func(channelType uint32, channel string, msg string, ctx util.ContextMap)) polycephalum.Polycephalum[string] {
 	return polycephalum.New[string](
-		fmt.Sprintf("%s-%d", time.Now(), rand.Int31()),
+		fmt.Sprintf("%d-%d", time.Now().Unix(), rand.Int31()),
 		kv.StringToByteCodec,
 		kv.MapKvs(),
 		publicKey,

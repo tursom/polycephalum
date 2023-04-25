@@ -1,6 +1,8 @@
 package polycephalum
 
 import (
+	"time"
+
 	"github.com/tursom/GoCollections/lang"
 
 	"github.com/tursom/polycephalum/proto/m"
@@ -16,6 +18,9 @@ func (p *impl[M]) startSyncer(wc lang.SendChannel[*m.Msg]) {
 }
 
 func (p *impl[M]) startNodeStateSyncer(wc lang.SendChannel[*m.Msg]) {
+	ticker := time.NewTicker(time.Second)
+	i := 0
+
 	for {
 		if !trySend(wc, m.Build(func(msg *m.Msg) {
 			msg.BuildSyncNodeStateRequest(func(r *m.SyncNodeStateRequest) {
@@ -37,10 +42,23 @@ func (p *impl[M]) startNodeStateSyncer(wc lang.SendChannel[*m.Msg]) {
 		})) {
 			return
 		}
+
+		i++
+		if i > 120 {
+			ticker.Reset(time.Minute * 5)
+		} else if i > 60 {
+			ticker.Reset(time.Minute)
+		} else if i > 15 {
+			ticker.Reset(time.Second * 15)
+		}
+		<-ticker.C
 	}
 }
 
 func (p *impl[M]) startBroadcastSyncer(wc lang.SendChannel[*m.Msg]) {
+	ticker := time.NewTicker(time.Second)
+	i := 0
+
 	for {
 		if !trySend(wc, m.Build(func(msg *m.Msg) {
 			msg.BuildSyncBroadcastMsg(func(r *m.SyncBroadcastMsg) {
@@ -57,5 +75,15 @@ func (p *impl[M]) startBroadcastSyncer(wc lang.SendChannel[*m.Msg]) {
 		})) {
 			return
 		}
+
+		i++
+		if i > 120 {
+			ticker.Reset(time.Minute * 5)
+		} else if i > 60 {
+			ticker.Reset(time.Minute)
+		} else if i > 15 {
+			ticker.Reset(time.Second * 15)
+		}
+		<-ticker.C
 	}
 }

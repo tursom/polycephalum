@@ -332,18 +332,25 @@ func (p *impl[M]) handleMessage(ctx util.ContextMap, msgBytes []byte) {
 
 	switch msg.Content.(type) {
 	case *m.Msg_Handshake:
+		log.Debugf("node %s received Handshake msg", p.id)
 		p.handleHandshakeMsg(ctx, &msg)
 	case *m.Msg_HandshakeResponse:
+		log.Debugf("node %s received HandshakeResponse msg", p.id)
 		p.handleHandshakeResponse(ctx, &msg)
 	case *m.Msg_SyncNodeStateRequest:
+		log.Debugf("node %s received SyncNodeStateRequest msg", p.id)
 		p.handleSyncNodeStateRequest(ctx, &msg)
 	case *m.Msg_BroadcastMsg:
+		log.Debugf("node %s received BroadcastMsg msg", p.id)
 		p.handleBroadcastRequest(ctx, &msg)
 	case *m.Msg_ListenBroadcastBloom:
+		log.Debugf("node %s received ListenBroadcastBloom msg", p.id)
 		p.handleListenBroadcastBloom(ctx, &msg)
 	case *m.Msg_AddBroadcastListen:
+		log.Debugf("node %s received AddBroadcastListen msg", p.id)
 		p.handleAddBroadcastListen(ctx, &msg)
 	case *m.Msg_SyncBroadcastMsg:
+		log.Debugf("node %s received SyncBroadcastMsg msg", p.id)
 		p.handleSyncBroadcastMsg(ctx, &msg)
 	default:
 		// TODO log
