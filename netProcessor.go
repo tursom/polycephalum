@@ -1,7 +1,6 @@
 package polycephalum
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -36,7 +35,7 @@ func newNetProcessor(nss nodeStateSyncer) distributed.NetProcessor {
 	}
 }
 
-func (n *netProcessor) Send(ctx context.Context, target []string, nextJmp string, msg *m.Msg) (unreachable lang.ReceiveChannel[string]) {
+func (n *netProcessor) Send(target []string, nextJmp string, msg *m.Msg) (unreachable lang.ReceiveChannel[string]) {
 	wc, ok := n.getWriteChannel(nextJmp)
 	if !ok {
 		return mr.SliceChannel(target)

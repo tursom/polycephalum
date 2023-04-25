@@ -34,7 +34,7 @@ func (p *impl[M]) startNodeStateSyncer(wc lang.SendChannel[*m.Msg]) {
 					r.States = append(r.States, &m.NodeState{
 						Id:    node.Id,
 						State: node.State,
-						Jump:  node.Jmp + 1,
+						Jump:  node.Jmp,
 					})
 
 				}
@@ -48,7 +48,7 @@ func (p *impl[M]) startNodeStateSyncer(wc lang.SendChannel[*m.Msg]) {
 			ticker.Reset(time.Minute * 5)
 		} else if i > 60 {
 			ticker.Reset(time.Minute)
-		} else if i > 15 {
+		} else if i > 5 {
 			ticker.Reset(time.Second * 15)
 		}
 		<-ticker.C
@@ -81,7 +81,7 @@ func (p *impl[M]) startBroadcastSyncer(wc lang.SendChannel[*m.Msg]) {
 			ticker.Reset(time.Minute * 5)
 		} else if i > 60 {
 			ticker.Reset(time.Minute)
-		} else if i > 15 {
+		} else if i > 5 {
 			ticker.Reset(time.Second * 15)
 		}
 		<-ticker.C

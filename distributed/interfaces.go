@@ -93,7 +93,7 @@ type (
 	NetProcessor interface {
 		lang.Object
 
-		Send(ctx context.Context, target []string, nextJmp string, msg *m.Msg) (unreachable lang.ReceiveChannel[string])
+		Send(target []string, nextJmp string, msg *m.Msg) (unreachable lang.ReceiveChannel[string])
 		NearSend(msg *m.Msg)
 
 		ChangeNodeState(id string, state uint32)

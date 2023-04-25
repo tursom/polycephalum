@@ -49,7 +49,8 @@ func (p *impl[M]) handleHandshakeResponse(ctx util.ContextMap, msg *m.Msg) {
 	wc := WriteChannelKey.Get(ctx)
 	p.netProcessor.setWriteChannel(nodeId, wc)
 
-	p.net.UpdateNodeState(nodeId, nodeId, 1, 0)
+	p.net.UpdateNodeState(nodeId, nodeId, 1, 1)
+	//p.netProcessor.ChangeNodeState(nodeId, 1)
 
 	_ = p.broadcast.NodeOnline(nodeId)
 
