@@ -63,7 +63,7 @@ type (
 		NodeOffline(nid string) exceptions.Exception
 		UpdateFilter(nid string, filter []byte, filterVersion uint32) (UpdateResult, exceptions.Exception)
 		RemoteListen(nid string, channel []*m.BroadcastChannel, filterVersion uint32) (UpdateResult, exceptions.Exception)
-		NodeFilter(nid string) ([]byte, uint32)
+		NodeFilter(nid string) (filter []byte, version uint32)
 		NodeHash(nid string) (version uint32, hash uint32)
 	}
 

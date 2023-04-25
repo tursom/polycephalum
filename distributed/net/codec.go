@@ -97,5 +97,15 @@ func (c *nodeCodec0) Decode(v1 []byte) *node {
 		buf = buf[4:]
 	}
 
+	injectNodeLock(n, c.locks)
+
 	return n
+}
+
+func injectNodeLock(n *node, locks map[string]*nodeLock) {
+	n.lock = locks[n.id]
+	if n.lock == nil {
+		n.lock = &nodeLock{}
+		locks[n.id] = n.lock
+	}
 }

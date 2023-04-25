@@ -1,7 +1,8 @@
 package broadcast
 
 import (
-	"github.com/tursom/GoCollections/concurrent"
+	"sync"
+
 	"github.com/tursom/GoCollections/exceptions"
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util"
@@ -19,7 +20,7 @@ type (
 
 		processor       distributed.BroadcastProcessor[M]
 		channelGroupMap map[string]struct{}
-		lock            concurrent.RWLock
+		lock            sync.RWMutex
 		filter          *bloom.Bloom
 
 		deleted uint32
@@ -64,13 +65,14 @@ func (c *local[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
 	if c.filter.C() > uint(len(c.channelGroupMap)) {
 		c.releaseNewFilterVersion()
 	} else {
-		c.processor.SendToNear(m.Build(func(msg *m.Msg) {
+		msg := m.Build(func(msg *m.Msg) {
 			msg.BuildAddBroadcastListen(func(addBroadcastListen *m.AddBroadcastListen) {
 				addBroadcastListen.Node = c.localId
 				addBroadcastListen.Version = c.version
 				addBroadcastListen.Channel = []*m.BroadcastChannel{channel}
 			})
-		}))
+		})
+		c.processor.SendToNear(msg)
 	}
 
 	return nil
@@ -110,5 +112,5 @@ func (c *local[M]) Receive(channel *m.BroadcastChannel, msg M, ctx util.ContextM
 		return
 	}
 
-	c.processor.SendToLocal(channel, msg, ctx)
+	go c.processor.SendToLocal(channel, msg, ctx)
 }

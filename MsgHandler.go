@@ -1,6 +1,8 @@
 package polycephalum
 
 import (
+	"bytes"
+
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	log "github.com/sirupsen/logrus"
 	"github.com/tursom/GoCollections/util"
@@ -26,7 +28,7 @@ func (p *impl[M]) handleHandshakeMsg(ctx util.ContextMap, msg *m.Msg) {
 	go trySend(wc, m.Build(func(msg *m.Msg) {
 		msg.BuildHandshakeResponse(func(handshakeResponse *m.HandshakeResponse) {
 			handshakeResponse.Id = p.id
-			handshakeResponse.Sign = sign
+			handshakeResponse.Sign = sign[:64]
 		})
 	}))
 }
@@ -36,17 +38,20 @@ func (p *impl[M]) handleHandshakeResponse(ctx util.ContextMap, msg *m.Msg) {
 
 	seed := NodeSeedKey.Get(ctx)
 
-	if !secp256k1.VerifySignature(p.privateKey, seed, response.Sign) {
+	if !secp256k1.VerifySignature(p.publicKey, seed, response.Sign) {
 		// TODO log
 		return
 	}
 
-	NodeIdKey.Set(ctx, response.GetId())
+	nodeId := response.GetId()
+	NodeIdKey.Set(ctx, nodeId)
 
 	wc := WriteChannelKey.Get(ctx)
-	p.netProcessor.setWriteChannel(response.GetId(), wc)
+	p.netProcessor.setWriteChannel(nodeId, wc)
 
-	_ = p.broadcast.NodeOnline(response.GetId())
+	p.net.UpdateNodeState(nodeId, nodeId, 1, 0)
+
+	_ = p.broadcast.NodeOnline(nodeId)
 
 	p.startSyncer(wc)
 }
@@ -118,6 +123,11 @@ func (p *impl[M]) handleListenBroadcastBloom(ctx util.ContextMap, msg *m.Msg) {
 	filter := msg.GetListenBroadcastBloom()
 
 	if filter.Node == p.id {
+		nodeFilter, version := p.broadcast.NodeFilter(p.id)
+		if version != filter.Version || bytes.Compare(nodeFilter, filter.Bloom) != 0 {
+			p.syncListenBroadcastBloom(ctx, filter.Node, false)
+		}
+
 		return
 	}
 
@@ -162,9 +172,9 @@ func (p *impl[M]) handleAddBroadcastListen(ctx util.ContextMap, msg *m.Msg) {
 	case distributed.UpdateResult_Updated:
 		p.netProcessor.NearSend(msg)
 	case distributed.UpdateResult_Older:
-		// NO-OP
-	case distributed.UpdateResult_Newer:
 		p.syncListenBroadcastBloom(ctx, listen.Node, true)
+	case distributed.UpdateResult_Newer:
+		p.syncListenBroadcastBloom(ctx, listen.Node, false)
 	}
 }
 

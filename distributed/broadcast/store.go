@@ -52,6 +52,10 @@ func (s *store) load(id string) (*node, exceptions.Exception) {
 		return nil, nil
 	}
 
+	if node, ok := s.cache.Get(id); ok {
+		return node, nil
+	}
+
 	return s.store.Get(id)
 }
 
@@ -138,7 +142,7 @@ func (s *store) remoteListen(id string, channel []*m.BroadcastChannel, filterVer
 }
 
 func (s *store) nodes(channel *m.BroadcastChannel) []string {
-	nodes := make([]string, 16)
+	nodes := make([]string, 0)
 
 	for id := range s.onlineNodes {
 		n, ok := s.cache.Get(id)
@@ -180,7 +184,9 @@ func (c *codec) Encode(v2 *node) []byte {
 
 func (c *codec) Decode(v1 []byte) *node {
 	if len(v1) == 0 {
-		return &node{}
+		return &node{
+			filter: bloom.NewBloom(1024, 0.03),
+		}
 	}
 
 	reader, err := gzip.NewReader(bytes.NewReader(v1))

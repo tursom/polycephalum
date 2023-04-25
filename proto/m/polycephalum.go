@@ -3,7 +3,6 @@ package m
 import (
 	"bytes"
 	"encoding/binary"
-	"strconv"
 	"unsafe"
 )
 
@@ -11,20 +10,6 @@ func Build(builder func(msg *Msg)) *Msg {
 	var msg Msg
 	builder(&msg)
 	return &msg
-}
-
-func UserChannel(uid string) *BroadcastChannel {
-	return &BroadcastChannel{
-		Type:    uint32(1),
-		Channel: uid,
-	}
-}
-
-func GroupChannel(channel int32) *BroadcastChannel {
-	return &BroadcastChannel{
-		Type:    uint32(2),
-		Channel: strconv.Itoa(int(channel)),
-	}
 }
 
 func (c *BroadcastChannel) MarshalString() string {

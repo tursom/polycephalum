@@ -36,12 +36,18 @@ func New[M any](
 	processor distributed.BroadcastProcessor[M],
 	persistence kv.Store[string, []byte],
 ) distributed.Broadcast[M] {
+	if version == 0 {
+		version = 1
+	}
+
 	return &broadcast[M]{
 		store: newStore(1024, persistence),
 		local: local[M]{
-			localId:   localId,
-			version:   version,
-			processor: processor,
+			localId:         localId,
+			version:         version,
+			processor:       processor,
+			channelGroupMap: make(map[string]struct{}),
+			filter:          bloom.NewBloom(1024, 0.03),
 		},
 	}
 }
@@ -89,7 +95,7 @@ func (c *broadcast[M]) Send(channel *m.BroadcastChannel, msg M, ctx util.Context
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	go c.local.Receive(channel, msg, ctx)
+	c.local.Receive(channel, msg, ctx)
 
 	nodes := c.store.nodes(channel)
 	go c.processor.SendToRemote(nodes, channel, c.processor.Encode(msg))
@@ -98,6 +104,13 @@ func (c *broadcast[M]) Send(channel *m.BroadcastChannel, msg M, ctx util.Context
 func (c *broadcast[M]) NodeFilter(nid string) ([]byte, uint32) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
+	if nid == c.localId {
+		c.lock.RLock()
+		defer c.lock.RUnlock()
+
+		return marshalFilter(c.filter), c.version
+	}
 
 	node, e := c.store.load(nid)
 	if e != nil {
@@ -113,6 +126,7 @@ func marshalFilter(filter *bloom.Bloom) []byte {
 	buffer := bytes.NewBuffer(nil)
 	writer := gzip.NewWriter(buffer)
 	filter.Marshal(writer)
+	_ = writer.Close()
 
 	return buffer.Bytes()
 }
@@ -132,6 +146,10 @@ func (c *broadcast[M]) NodeHash(nid string) (version uint32, hash uint32) {
 	if e != nil {
 		return 0, 0
 	} else if node == nil {
+		return 0, 0
+	}
+
+	if node.filter == nil {
 		return 0, 0
 	}
 

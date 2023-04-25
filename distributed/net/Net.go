@@ -140,7 +140,7 @@ func (n *netImpl) mapTargets(
 		node, e := n.getNode(id)
 		if e != nil {
 			return e
-		} else if n == nil {
+		} else if node == nil {
 			continue
 		}
 
@@ -177,6 +177,9 @@ func (n *netImpl) doSend(
 	for unreachable := range mr.MultiMap(ch, func(value *sendOp) lang.ReceiveChannel[string] {
 		return n.processor.Send(ctx, value.target, value.nextJmp, msg)
 	}) {
+		if unreachable == nil {
+			continue
+		}
 		unreachable := unreachable
 		go func() {
 			for id := range unreachable.RCh() {
@@ -264,6 +267,8 @@ func (n *netImpl) UpdateNodeState(from, id string, state, jmp uint32) {
 			id:   id,
 			lock: lock,
 		}
+
+		n.cache.Add(id, target)
 	}
 
 	target.stateChanged(state, from, jmp, n.processor.NearSend)

@@ -11,8 +11,8 @@ func (p *impl[M]) startSyncer(wc lang.SendChannel[*m.Msg]) {
 		return
 	}
 
-	// TODO impl
 	go p.startNodeStateSyncer(wc)
+	go p.startBroadcastSyncer(wc)
 }
 
 func (p *impl[M]) startNodeStateSyncer(wc lang.SendChannel[*m.Msg]) {

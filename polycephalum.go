@@ -33,6 +33,8 @@ type (
 	Polycephalum[M any] interface {
 		NewConn(reader io.Reader, writer io.Writer)
 		Broadcast(channelType uint32, channel string, msg M, ctx util.ContextMap)
+		Listen(channel *m.BroadcastChannel) exceptions.Exception
+		CancelListen(channel *m.BroadcastChannel) exceptions.Exception
 	}
 
 	impl[M any] struct {
@@ -47,6 +49,7 @@ type (
 		net       distributed.Net
 		broadcast distributed.Broadcast[M]
 
+		publicKey  []byte
 		privateKey []byte
 	}
 
@@ -60,14 +63,17 @@ func New[M any](
 	id string,
 	messageProcessor distributed.Codec[M],
 	kvs kv.Store[string, []byte],
+	publicKey []byte,
 	privateKey []byte,
 	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap),
 ) Polycephalum[M] {
 	store := kv.KCodecStore(kvs, kv.PrefixCodec("polycephalum-"))
 
-	var netProcessor netProcessor
+	netProcessor := &netProcessor{
+		m: make(map[string]lang.SendChannel[*m.Msg]),
+	}
 
-	netInstance := net.New(id, &netProcessor, kv.KCodecStore(kvs, kv.PrefixCodec("net-")))
+	netInstance := net.New(id, netProcessor, kv.KCodecStore(kvs, kv.PrefixCodec("net-")))
 	bp := distributed.NetBroadcastProcessor(netInstance, messageProcessor, receiver)
 
 	b := broadcast.New[M](
@@ -81,10 +87,11 @@ func New[M any](
 	p := &impl[M]{
 		id:           id,
 		kvs:          store,
-		netProcessor: &netProcessor,
+		netProcessor: netProcessor,
 		message:      messageProcessor,
 		net:          netInstance,
 		broadcast:    b,
+		publicKey:    publicKey,
 		privateKey:   privateKey,
 	}
 
@@ -110,6 +117,14 @@ func (p *impl[M]) Broadcast(channelType uint32, channel string, msg M, ctx util.
 		Type:    channelType,
 		Channel: channel,
 	}, msg, ctx)
+}
+
+func (p *impl[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
+	return p.broadcast.Listen(channel)
+}
+
+func (p *impl[M]) CancelListen(channel *m.BroadcastChannel) exceptions.Exception {
+	return p.broadcast.CancelListen(channel)
 }
 
 func (p *impl[M]) NewConn(reader io.Reader, writer io.Writer) {
@@ -187,7 +202,7 @@ func (p *impl[M]) doRead(reader io.Reader, closer func(), ctx util.ContextMap) {
 			continue
 		}
 
-		in = append(in, buffer[n:])
+		in = append(in, buffer[:n])
 		if len(buffer)-n < 512 {
 			buffer = make([]byte, 1024)
 		} else {
@@ -209,7 +224,7 @@ func processRead(in *[][]byte, out func([]byte)) {
 		if msgSize < 0 {
 			panic(exceptions.NewIllegalAccessException(
 				"Msg size is negative! An error may occurred when transmission", nil))
-		} else if msgSize == 0 || msgSize+4 < size {
+		} else if msgSize == 0 || msgSize+4 > size {
 			return
 		}
 
