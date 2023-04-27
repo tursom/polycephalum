@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"gitea.tursom.cn/tursom/kvs/kv"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -12,6 +11,7 @@ import (
 	"github.com/tursom/GoCollections/exceptions"
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util/mr"
+	"github.com/tursom/GoCollections/util/time"
 
 	"github.com/tursom/polycephalum/distributed"
 	"github.com/tursom/polycephalum/proto/m"
@@ -390,7 +390,7 @@ func (n *node) waitSuspect() {
 
 	select {
 	case <-wc:
-	case <-time.NewTimer(timeout).C:
+	case <-time.After(timeout):
 	}
 }
 

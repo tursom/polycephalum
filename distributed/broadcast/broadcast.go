@@ -5,12 +5,12 @@ import (
 	"compress/gzip"
 	"io"
 	"sync"
-	"time"
 
 	"gitea.tursom.cn/tursom/kvs/kv"
 	"github.com/tursom/GoCollections/exceptions"
 	"github.com/tursom/GoCollections/util"
 	"github.com/tursom/GoCollections/util/bloom"
+	"github.com/tursom/GoCollections/util/time"
 
 	"github.com/tursom/polycephalum/distributed"
 	"github.com/tursom/polycephalum/proto/m"
@@ -84,14 +84,14 @@ func (c *broadcast[M]) UpdateFilter(nid string, filter []byte, filterVersion uin
 	return c.store.updateFilter(nid, bloom.Unmarshal(bs), filterVersion)
 }
 
-func (c *broadcast[M]) RemoteListen(nid string, channel []*m.BroadcastChannel, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
+func (c *broadcast[M]) RemoteListen(nid string, channel []m.Channel, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	return c.store.remoteListen(nid, channel, filterVersion)
 }
 
-func (c *broadcast[M]) Send(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
+func (c *broadcast[M]) Send(channel m.Channel, msg M, ctx util.ContextMap) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 

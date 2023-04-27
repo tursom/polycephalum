@@ -2,6 +2,7 @@ package polycephalum
 
 import (
 	"bytes"
+	"unsafe"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	log "github.com/sirupsen/logrus"
@@ -159,7 +160,7 @@ func (p *impl[M]) handleAddBroadcastListen(ctx util.ContextMap, msg *m.Msg) {
 		return
 	}
 
-	res, e := p.broadcast.RemoteListen(listen.Node, listen.Channel, listen.Version)
+	res, e := p.broadcast.RemoteListen(listen.Node, *(*[]m.Channel)(unsafe.Pointer(&listen.Channel)), listen.Version)
 	if e != nil {
 		// TODO log
 		return

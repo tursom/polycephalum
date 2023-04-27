@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"sync"
-	"time"
 
 	"gitea.tursom.cn/tursom/kvs/kv"
 	"github.com/golang/protobuf/proto"
@@ -15,6 +14,7 @@ import (
 	"github.com/tursom/GoCollections/exceptions"
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util"
+	"github.com/tursom/GoCollections/util/time"
 
 	"github.com/tursom/polycephalum/distributed"
 	"github.com/tursom/polycephalum/distributed/broadcast"
@@ -32,9 +32,9 @@ var (
 type (
 	Polycephalum[M any] interface {
 		NewConn(reader io.Reader, writer io.Writer)
-		Broadcast(channelType uint32, channel string, msg M, ctx util.ContextMap)
-		Listen(channel *m.BroadcastChannel) exceptions.Exception
-		CancelListen(channel *m.BroadcastChannel) exceptions.Exception
+		Broadcast(channel m.Channel, msg M, ctx util.ContextMap)
+		Listen(channel m.Channel) exceptions.Exception
+		CancelListen(channel m.Channel) exceptions.Exception
 	}
 
 	impl[M any] struct {
@@ -65,7 +65,7 @@ func New[M any](
 	kvs kv.Store[string, []byte],
 	publicKey []byte,
 	privateKey []byte,
-	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap),
+	receiver func(channel m.Channel, msg M, ctx util.ContextMap),
 ) Polycephalum[M] {
 	store := kv.KCodecStore(kvs, kv.PrefixCodec("polycephalum-"))
 
@@ -120,18 +120,15 @@ func (p *impl[M]) u32KvsPut(key string, value uint32) exceptions.Exception {
 	return p.u32Kvs().Put(key, value)
 }
 
-func (p *impl[M]) Broadcast(channelType uint32, channel string, msg M, ctx util.ContextMap) {
-	p.broadcast.Send(&m.BroadcastChannel{
-		Type:    channelType,
-		Channel: channel,
-	}, msg, ctx)
+func (p *impl[M]) Broadcast(channel m.Channel, msg M, ctx util.ContextMap) {
+	p.broadcast.Send(channel, msg, ctx)
 }
 
-func (p *impl[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
+func (p *impl[M]) Listen(channel m.Channel) exceptions.Exception {
 	return p.broadcast.Listen(channel)
 }
 
-func (p *impl[M]) CancelListen(channel *m.BroadcastChannel) exceptions.Exception {
+func (p *impl[M]) CancelListen(channel m.Channel) exceptions.Exception {
 	return p.broadcast.CancelListen(channel)
 }
 

@@ -107,7 +107,7 @@ func (s *store) updateFilter(id string, filter *bloom.Bloom, filterVersion uint3
 	}
 }
 
-func (s *store) remoteListen(id string, channel []*m.BroadcastChannel, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
+func (s *store) remoteListen(id string, channel []m.Channel, filterVersion uint32) (distributed.UpdateResult, exceptions.Exception) {
 	n, ok := s.cache.Get(id)
 	if !ok {
 		var exception exceptions.Exception
@@ -141,7 +141,7 @@ func (s *store) remoteListen(id string, channel []*m.BroadcastChannel, filterVer
 	return result, nil
 }
 
-func (s *store) nodes(channel *m.BroadcastChannel) []string {
+func (s *store) nodes(channel m.Channel) []string {
 	nodes := make([]string, 0)
 
 	for id := range s.onlineNodes {

@@ -54,7 +54,7 @@ func (c *local[M]) updateFilterLF() (*bloom.Bloom, uint32) {
 	return c.filter, c.version
 }
 
-func (c *local[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
+func (c *local[M]) Listen(channel m.Channel) exceptions.Exception {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -69,7 +69,7 @@ func (c *local[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
 			msg.BuildAddBroadcastListen(func(addBroadcastListen *m.AddBroadcastListen) {
 				addBroadcastListen.Node = c.localId
 				addBroadcastListen.Version = c.version
-				addBroadcastListen.Channel = []*m.BroadcastChannel{channel}
+				addBroadcastListen.Channel = [][]byte{channel}
 			})
 		})
 		c.processor.SendToNear(msg)
@@ -78,7 +78,7 @@ func (c *local[M]) Listen(channel *m.BroadcastChannel) exceptions.Exception {
 	return nil
 }
 
-func (c *local[M]) CancelListen(channel *m.BroadcastChannel) exceptions.Exception {
+func (c *local[M]) CancelListen(channel m.Channel) exceptions.Exception {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -104,7 +104,7 @@ func (c *local[M]) releaseNewFilterVersion() {
 	}))
 }
 
-func (c *local[M]) Receive(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
+func (c *local[M]) Receive(channel m.Channel, msg M, ctx util.ContextMap) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 

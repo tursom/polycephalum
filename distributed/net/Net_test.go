@@ -3,7 +3,8 @@ package net
 import (
 	"fmt"
 	"testing"
-	"time"
+
+	"github.com/tursom/GoCollections/util/time"
 )
 
 func Test_node_stateChanged(t *testing.T) {

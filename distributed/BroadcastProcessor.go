@@ -11,13 +11,13 @@ type broadcastProcessorImpl[M any] struct {
 	lang.BaseObject
 	Codec[M]
 	net      Net
-	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap)
+	receiver func(channel m.Channel, msg M, ctx util.ContextMap)
 }
 
 func NetBroadcastProcessor[M any](
 	net Net,
 	message Codec[M],
-	receiver func(channelType uint32, channel string, msg M, ctx util.ContextMap),
+	receiver func(channel m.Channel, msg M, ctx util.ContextMap),
 ) BroadcastProcessor[M] {
 	return &broadcastProcessorImpl[M]{
 		Codec:    message,
@@ -26,15 +26,15 @@ func NetBroadcastProcessor[M any](
 	}
 }
 
-func (b *broadcastProcessorImpl[M]) SendToLocal(channel *m.BroadcastChannel, msg M, ctx util.ContextMap) {
+func (b *broadcastProcessorImpl[M]) SendToLocal(channel m.Channel, msg M, ctx util.ContextMap) {
 	if b.receiver == nil {
 		return
 	}
 
-	b.receiver(channel.Type, channel.Channel, msg, ctx)
+	b.receiver(channel, msg, ctx)
 }
 
-func (b *broadcastProcessorImpl[M]) SendToRemote(id []string, channel *m.BroadcastChannel, msg []byte) {
+func (b *broadcastProcessorImpl[M]) SendToRemote(id []string, channel m.Channel, msg []byte) {
 	_ = b.net.Send(nil, id, m.Build(func(mm *m.Msg) {
 		mm.BuildBroadcastMsg(func(broadcastMsg *m.BroadcastMsg) {
 			broadcastMsg.Source = b.net.LocalId()

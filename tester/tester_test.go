@@ -5,17 +5,18 @@ import (
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/tursom/GoCollections/util"
+	"github.com/tursom/GoCollections/util/time"
 
 	"github.com/tursom/polycephalum"
 	"github.com/tursom/polycephalum/distributed"
+	"github.com/tursom/polycephalum/proto/m"
 )
 
-func msgLogger(wg *sync.WaitGroup) func(channelType uint32, channel string, msg string, ctx util.ContextMap) {
-	return func(channelType uint32, channel string, msg string, ctx util.ContextMap) {
-		fmt.Printf("receive msg: type: %d, channel: %s, msg: %s\n", channelType, channel, msg)
+func msgLogger(wg *sync.WaitGroup) func(channel m.Channel, msg string, ctx util.ContextMap) {
+	return func(channel m.Channel, msg string, ctx util.ContextMap) {
+		fmt.Printf("receive msg: channel: %s, msg: %s\n", string(channel), msg)
 		wg.Done()
 	}
 }
@@ -34,7 +35,7 @@ func Test_Polycephalum(t *testing.T) {
 		newTestPolycephalum("4", msgLogger(&wg)),
 	}
 
-	channel := UserChannel("test1")
+	channel := m.Channel("test1")
 	_ = ps[4].Listen(channel)
 
 	for _, s := range []struct{ a, b int }{
@@ -54,7 +55,7 @@ func Test_Polycephalum(t *testing.T) {
 	printNetwork(ps)
 
 	for i := 0; i < 16; i++ {
-		ps[0].Broadcast(channel.Type, channel.Channel, fmt.Sprintf("hello %d times", i), nil)
+		ps[0].Broadcast(channel, fmt.Sprintf("hello %d times", i), nil)
 	}
 	wg.Wait()
 

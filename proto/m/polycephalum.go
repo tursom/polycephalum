@@ -1,10 +1,10 @@
 package m
 
 import (
-	"bytes"
-	"encoding/binary"
 	"unsafe"
 )
+
+type Channel []byte
 
 func Build(builder func(msg *Msg)) *Msg {
 	var msg Msg
@@ -12,18 +12,12 @@ func Build(builder func(msg *Msg)) *Msg {
 	return &msg
 }
 
-func (c *BroadcastChannel) MarshalString() string {
-	marshal := c.Marshal()
-	return *(*string)(unsafe.Pointer(&marshal))
+func (c Channel) MarshalString() string {
+	return *(*string)(unsafe.Pointer(&c))
 }
 
-func (c *BroadcastChannel) Marshal() []byte {
-	buffer := bytes.NewBuffer(nil)
-
-	_ = binary.Write(buffer, binary.BigEndian, c.Type)
-	buffer.Write([]byte(c.Channel))
-
-	return buffer.Bytes()
+func (c Channel) Marshal() []byte {
+	return c
 }
 
 func (m *Msg) SetHandshake(handshake *Handshake) *Msg {

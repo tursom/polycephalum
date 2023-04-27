@@ -42,16 +42,11 @@ message SyncNodeStateRequest {
   repeated NodeState states = 1;
 }
 
-message BroadcastChannel {
-  uint32 type = 1;
-  string channel = 2;
-}
-
 message BroadcastMsg {
   string requestId = 1;
   string source = 2;
   repeated string target = 3;
-  BroadcastChannel channel = 4;
+  bytes channel = 4;
   bytes message = 5;
 }
 
@@ -67,7 +62,7 @@ message ListenBroadcastBloom {
 message AddBroadcastListen {
   string node = 1;
   uint32 version = 2;
-  repeated BroadcastChannel channel = 3;
+  repeated bytes channel = 3;
 }
 
 message SyncBroadcastMsg {

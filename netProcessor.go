@@ -2,12 +2,12 @@ package polycephalum
 
 import (
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/tursom/GoCollections/exceptions"
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util/mr"
+	"github.com/tursom/GoCollections/util/time"
 
 	"github.com/tursom/polycephalum/distributed"
 	"github.com/tursom/polycephalum/proto/m"

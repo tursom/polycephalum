@@ -23,8 +23,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 github.com/timandy/routine v1.1.1 h1:6/Z7qLFZj3GrzuRksBFzIG8YGUh8CLhjnnMePBQTrEI=
 github.com/timandy/routine v1.1.1/go.mod h1:OZHPOKSvqL/ZvqXFkNZyit0xIVelERptYXdAHH00adQ=
-github.com/tursom/GoCollections v0.3.7 h1:v+lsrwjduHd6oN541Lmy+OvsVjrTwHeQpX++Fz9uHE4=
-github.com/tursom/GoCollections v0.3.7/go.mod h1:uGlIIUhnuK01+AlzYtS/P+ZfqA2Q6MEulrPChiwf3KI=
+github.com/tursom/GoCollections v0.3.8 h1:ihlYY5S2W/ldKJoHfKvmryDnHWlXVDVOcWSPcuzN334=
+github.com/tursom/GoCollections v0.3.8/go.mod h1:uGlIIUhnuK01+AlzYtS/P+ZfqA2Q6MEulrPChiwf3KI=
 golang.org/x/crypto v0.1.0 h1:MDRAIl0xIo9Io2xV565hzXHw3zVseKrJKodhohM5CjU=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.7.0 h1:3jlCCIQZPdOYu1h8BkNvLz8Kgwtae2cagcG/VamtZRU=

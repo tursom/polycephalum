@@ -53,24 +53,24 @@ type (
 	Broadcast[M any] interface {
 		lang.Object
 
-		Listen(channel *m.BroadcastChannel) exceptions.Exception
-		CancelListen(channel *m.BroadcastChannel) exceptions.Exception
-		Send(channel *m.BroadcastChannel, msg M, ctx util.ContextMap)
+		Listen(channel m.Channel) exceptions.Exception
+		CancelListen(channel m.Channel) exceptions.Exception
+		Send(channel m.Channel, msg M, ctx util.ContextMap)
 
 		Snap() []string
-		Receive(channel *m.BroadcastChannel, msg M, ctx util.ContextMap)
+		Receive(channel m.Channel, msg M, ctx util.ContextMap)
 		NodeOnline(nid string) exceptions.Exception
 		NodeOffline(nid string) exceptions.Exception
 		UpdateFilter(nid string, filter []byte, filterVersion uint32) (UpdateResult, exceptions.Exception)
-		RemoteListen(nid string, channel []*m.BroadcastChannel, filterVersion uint32) (UpdateResult, exceptions.Exception)
+		RemoteListen(nid string, channel []m.Channel, filterVersion uint32) (UpdateResult, exceptions.Exception)
 		NodeFilter(nid string) (filter []byte, version uint32)
 		NodeHash(nid string) (version uint32, hash uint32)
 	}
 
 	BroadcastProcessor[M any] interface {
 		Codec[M]
-		SendToLocal(channel *m.BroadcastChannel, msg M, ctx util.ContextMap)
-		SendToRemote(id []string, channel *m.BroadcastChannel, msg []byte)
+		SendToLocal(channel m.Channel, msg M, ctx util.ContextMap)
+		SendToRemote(id []string, channel m.Channel, msg []byte)
 		SendToNear(msg *m.Msg)
 	}
 

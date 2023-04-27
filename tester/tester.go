@@ -8,6 +8,7 @@ import (
 	"github.com/tursom/GoCollections/util"
 
 	"github.com/tursom/polycephalum"
+	"github.com/tursom/polycephalum/proto/m"
 )
 
 type (
@@ -18,7 +19,7 @@ type (
 	}
 )
 
-func newTestPolycephalum(id string, receiver func(channelType uint32, channel string, msg string, ctx util.ContextMap)) polycephalum.Polycephalum[string] {
+func newTestPolycephalum(id string, receiver func(channel m.Channel, msg string, ctx util.ContextMap)) polycephalum.Polycephalum[string] {
 	return polycephalum.New[string](
 		id,
 		kv.StringToByteCodec,
