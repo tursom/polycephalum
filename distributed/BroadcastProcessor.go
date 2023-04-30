@@ -7,18 +7,34 @@ import (
 	"github.com/tursom/polycephalum/proto/m"
 )
 
-type broadcastProcessorImpl[M any] struct {
-	lang.BaseObject
-	Codec[M]
-	net      Net
-	receiver func(channel m.Channel, msg M, ctx util.ContextMap)
-}
+type (
+	Receiver[M any] func(channel m.Channel, msg M, ctx util.ContextMap)
+
+	broadcastProcessorImpl[M any] struct {
+		lang.BaseObject
+		Codec[M]
+		net      Net
+		receiver Receiver[M]
+	}
+)
 
 func NetBroadcastProcessor[M any](
 	net Net,
 	message Codec[M],
-	receiver func(channel m.Channel, msg M, ctx util.ContextMap),
+	receiver Receiver[M],
 ) BroadcastProcessor[M] {
+	if net == nil {
+		panic("nil net")
+	}
+
+	if message == nil {
+		panic("nil msg codec")
+	}
+
+	if receiver == nil {
+		panic("nil msg receiver")
+	}
+
 	return &broadcastProcessorImpl[M]{
 		Codec:    message,
 		net:      net,
@@ -26,11 +42,15 @@ func NetBroadcastProcessor[M any](
 	}
 }
 
-func (b *broadcastProcessorImpl[M]) SendToLocal(channel m.Channel, msg M, ctx util.ContextMap) {
-	if b.receiver == nil {
-		return
+func (b *broadcastProcessorImpl[M]) SetReceiver(receiver Receiver[M]) {
+	if receiver == nil {
+		panic("nil msg receiver")
 	}
 
+	b.receiver = receiver
+}
+
+func (b *broadcastProcessorImpl[M]) SendToLocal(channel m.Channel, msg M, ctx util.ContextMap) {
 	b.receiver(channel, msg, ctx)
 }
 

@@ -3,9 +3,9 @@ package tester
 import (
 	"io"
 
-	"gitea.tursom.cn/tursom/kvs/kv"
 	"github.com/tursom/GoCollections/lang"
 	"github.com/tursom/GoCollections/util"
+	"github.com/tursom/kvs/kv"
 
 	"github.com/tursom/polycephalum"
 	"github.com/tursom/polycephalum/proto/m"
@@ -69,12 +69,16 @@ func (t *testIO) Read(p []byte) (n int, err error) {
 		}
 	}
 
-	select {
-	case buf := <-t.ch.RCh():
-		t.readBuf = buf
-		return t.Read(p)
-	case <-t.closeCh.RCh():
-		return 0, io.EOF
+	for {
+		select {
+		case buf := <-t.ch.RCh():
+			t.readBuf = buf
+			if len(t.readBuf) != 0 {
+				return t.Read(p)
+			}
+		case <-t.closeCh.RCh():
+			return 0, io.EOF
+		}
 	}
 }
 

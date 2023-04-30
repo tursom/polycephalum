@@ -1,6 +1,7 @@
 package tester
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"sync"
@@ -14,10 +15,16 @@ import (
 	"github.com/tursom/polycephalum/proto/m"
 )
 
-func msgLogger(wg *sync.WaitGroup) func(channel m.Channel, msg string, ctx util.ContextMap) {
+func logReceiver(wg *sync.WaitGroup) distributed.Receiver[string] {
 	return func(channel m.Channel, msg string, ctx util.ContextMap) {
 		fmt.Printf("receive msg: channel: %s, msg: %s\n", string(channel), msg)
 		wg.Done()
+	}
+}
+
+func unreachableReceiver(t *testing.T) distributed.Receiver[string] {
+	return func(channel m.Channel, msg string, ctx util.ContextMap) {
+		t.Fatalf("this branch should never be rached.")
 	}
 }
 
@@ -28,26 +35,28 @@ func Test_Polycephalum(t *testing.T) {
 	wg.Add(16)
 
 	ps := []polycephalum.Polycephalum[string]{
-		newTestPolycephalum("0", nil),
-		newTestPolycephalum("1", nil),
-		newTestPolycephalum("2", nil),
-		newTestPolycephalum("3", nil),
-		newTestPolycephalum("4", msgLogger(&wg)),
+		newTestPolycephalum("0", unreachableReceiver(t)),
+		newTestPolycephalum("1", unreachableReceiver(t)),
+		newTestPolycephalum("2", unreachableReceiver(t)),
+		newTestPolycephalum("3", unreachableReceiver(t)),
+		newTestPolycephalum("4", logReceiver(&wg)),
 	}
 
 	channel := m.Channel("test1")
 	_ = ps[4].Listen(channel)
 
-	for _, s := range []struct{ a, b int }{
-		{0, 1},
-		{0, 2},
-		{1, 2},
-		{1, 3},
-		{2, 3},
-		{2, 4},
-		{3, 4},
+	for _, s := range []struct {
+		from  int
+		links []int
+	}{
+		{0, []int{1}},
+		{1, []int{2, 3}},
+		{2, []int{3, 4}},
+		{3, []int{4}},
 	} {
-		connect(ps[s.a], ps[s.b])
+		for _, link := range s.links {
+			connect(ps[s.from], ps[link])
+		}
 	}
 
 	time.Sleep(time.Millisecond * 10)
@@ -79,7 +88,7 @@ func printNetwork(ps []polycephalum.Polycephalum[string]) {
 	}
 }
 
-func Test_testIO(t1 *testing.T) {
+func Test_testIO(t *testing.T) {
 	io := newTestIO()
 	go func() {
 		_, _ = io.Write([]byte("Hello"))
@@ -89,6 +98,7 @@ func Test_testIO(t1 *testing.T) {
 		_ = io.Close()
 	}()
 
+	buffer := bytes.NewBuffer(nil)
 	buf := make([]byte, 4)
 	for {
 		n, err := io.Read(buf)
@@ -96,7 +106,12 @@ func Test_testIO(t1 *testing.T) {
 			break
 		}
 
+		buffer.Write(buf[:n])
 		fmt.Printf("%s", string(buf[:n]))
 	}
 	fmt.Printf("\n")
+
+	if !bytes.Equal(buffer.Bytes(), []byte("Hello world!")) {
+		t.Fatalf("failed to read the right msg")
+	}
 }

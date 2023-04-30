@@ -6,11 +6,11 @@ import (
 	"io"
 	"sync"
 
-	"gitea.tursom.cn/tursom/kvs/kv"
 	"github.com/tursom/GoCollections/exceptions"
 	"github.com/tursom/GoCollections/util"
 	"github.com/tursom/GoCollections/util/bloom"
 	"github.com/tursom/GoCollections/util/time"
+	"github.com/tursom/kvs/kv"
 
 	"github.com/tursom/polycephalum/distributed"
 	"github.com/tursom/polycephalum/proto/m"
